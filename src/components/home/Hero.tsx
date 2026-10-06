@@ -13,7 +13,7 @@ export const Hero: React.FC = () => {
       {/* Background Hero Image with Overlays */}
       <div className="absolute inset-0 z-0">
         <img
-          src={theme.heroImageUrl}
+          src={theme.heroImageUrl?.trim() || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1920&q=80'}
           alt="Lohas Architecture Hero"
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover object-center brightness-[0.5] scale-105 transition-transform duration-1000"

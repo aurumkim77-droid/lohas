@@ -170,7 +170,7 @@ export const PortfolioPage: React.FC = () => {
                   <div>
                     <div className="relative h-64 overflow-hidden bg-slate-900">
                       <img
-                        src={item.imageUrl}
+                        src={item.imageUrl?.trim() || getCategoryFallbackImage(item.category)}
                         alt={item.title}
                         onError={(e) => {
                           const target = e.currentTarget;
@@ -337,7 +337,7 @@ export const PortfolioPage: React.FC = () => {
             {/* Main Image View */}
             <div className="relative h-80 sm:h-96 bg-slate-950 shrink-0">
               <img
-                src={galleryImages[activeImgIndex] || selectedItem.imageUrl}
+                src={(galleryImages[activeImgIndex] || selectedItem.imageUrl)?.trim() || getCategoryFallbackImage(selectedItem.category)}
                 alt={selectedItem.title}
                 onError={(e) => {
                   const target = e.currentTarget;
@@ -392,7 +392,7 @@ export const PortfolioPage: React.FC = () => {
             {/* Gallery Thumbnail Strip */}
             {galleryImages.length > 1 && (
               <div className="p-3 bg-slate-900 border-b border-slate-800 flex items-center gap-2 overflow-x-auto shrink-0">
-                {galleryImages.map((img, idx) => (
+                {galleryImages.filter(img => typeof img === 'string' && img.trim().length > 0).map((img, idx) => (
                   <button
                     key={idx}
                     onClick={() => setActiveImgIndex(idx)}
@@ -400,7 +400,7 @@ export const PortfolioPage: React.FC = () => {
                       activeImgIndex === idx ? 'border-[#f5ea1d] scale-105' : 'border-transparent opacity-60 hover:opacity-100'
                     }`}
                   >
-                    <img src={img} alt={`Thumb ${idx}`} className="w-full h-full object-cover" />
+                    <img src={img.trim()} alt={`Thumb ${idx}`} className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>

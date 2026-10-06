@@ -722,17 +722,17 @@ export const AdminPortfolioEdit: React.FC = () => {
                   </button>
                 </div>
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-40 overflow-y-auto">
-                  {siteData.uploadedImages.map((img, idx) => (
+                  {siteData.uploadedImages.filter(img => typeof img === 'string' && img.trim().length > 0).map((img, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => {
-                        setAdditionalImages((prev) => [...prev, img]);
+                        setAdditionalImages((prev) => [...prev, img.trim()]);
                         setShowAddLibrary(false);
                       }}
                       className="h-14 rounded-lg overflow-hidden border border-slate-200 hover:border-[#001528] transition group"
                     >
-                      <img src={img} alt={`Lib ${idx}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <img src={img.trim()} alt={`Lib ${idx}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                     </button>
                   ))}
                 </div>
@@ -742,9 +742,9 @@ export const AdminPortfolioEdit: React.FC = () => {
             {/* Thumbnails of additional images */}
             {additionalImages.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3 pt-2">
-                {additionalImages.map((img, idx) => (
+                {additionalImages.filter(img => typeof img === 'string' && img.trim().length > 0).map((img, idx) => (
                   <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-900 h-24">
-                    <img src={img} alt={`Sub ${idx}`} className="w-full h-full object-cover" />
+                    <img src={img.trim()} alt={`Sub ${idx}`} className="w-full h-full object-cover" />
                     <span className="absolute top-1 left-1 bg-slate-950/70 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
                       {idx + 1}
                     </span>
@@ -859,9 +859,9 @@ export const AdminPortfolioEdit: React.FC = () => {
 
               <div className="max-w-sm mx-auto bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-md">
                 <div className="relative h-48 bg-slate-900">
-                  {imageUrl ? (
+                  {imageUrl && imageUrl.trim().length > 0 ? (
                     <img
-                      src={imageUrl}
+                      src={imageUrl.trim()}
                       alt={title || '미리보기'}
                       onError={(e) => {
                         const target = e.currentTarget;
@@ -1143,7 +1143,7 @@ export const AdminPortfolioEdit: React.FC = () => {
                     {/* Thumbnail Image */}
                     <div className="w-16 h-14 sm:w-20 sm:h-16 rounded-xl overflow-hidden bg-slate-900 shrink-0 border border-slate-200 relative group">
                       <img
-                        src={p.imageUrl}
+                        src={p.imageUrl?.trim() || getCategoryFallbackImage(p.category)}
                         alt={p.title}
                         onError={(e) => {
                           const target = e.currentTarget;

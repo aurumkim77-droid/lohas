@@ -173,12 +173,12 @@ export const AdminImageEdit: React.FC = () => {
           </h3>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {siteData.uploadedImages.map((img, idx) => (
+            {siteData.uploadedImages.filter(img => typeof img === 'string' && img.trim().length > 0).map((img, idx) => (
               <div
                 key={idx}
                 className="group relative h-40 rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shadow-sm"
               >
-                <img src={img} alt={`Library Image ${idx}`} className="w-full h-full object-cover" />
+                <img src={img.trim()} alt={`Library Image ${idx}`} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition-opacity p-3 flex flex-col justify-between">
                   <div className="flex justify-end">
                     <button

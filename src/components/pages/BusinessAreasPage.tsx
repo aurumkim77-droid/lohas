@@ -37,7 +37,7 @@ export const BusinessAreasPage: React.FC = () => {
               <div className={`lg:col-span-5 ${isEven ? 'lg:order-2' : ''}`}>
                 <div className="relative h-80 sm:h-96 rounded-2xl overflow-hidden shadow-lg bg-slate-900 group">
                   <img
-                    src={card.imageUrl}
+                    src={card.imageUrl?.trim() || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80'}
                     alt={card.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />

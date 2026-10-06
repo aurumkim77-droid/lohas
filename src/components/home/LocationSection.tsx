@@ -108,7 +108,7 @@ export const LocationSection: React.FC = () => {
           <div className="lg:col-span-7 bg-slate-800 rounded-2xl overflow-hidden border border-slate-700 min-h-[400px] relative shadow-2xl">
             <iframe
               title="로하스건축사사무소 위치 지도"
-              src={settings.googleMapEmbedUrl}
+              src={settings.googleMapEmbedUrl?.trim() || "https://maps.google.com/maps?q=%EC%82%B4%EA%B3%B3%EC%9D%B4%EA%B8%B8%20150&t=&z=16&ie=UTF8&iwloc=&output=embed"}
               className="w-full h-full min-h-[400px] border-0 filter grayscale-[20%] contrast-[110%]"
               loading="lazy"
               allowFullScreen

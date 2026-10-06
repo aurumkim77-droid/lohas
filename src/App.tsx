@@ -6,6 +6,7 @@ import { AdminLoginModal } from './components/common/AdminLoginModal';
 import { Hero } from './components/home/Hero';
 import { BusinessAreasSection } from './components/home/BusinessAreasSection';
 import { PortfolioPreview } from './components/home/PortfolioPreview';
+import { LocationSection } from './components/home/LocationSection';
 
 import { CompanyPage } from './components/pages/CompanyPage';
 import { BusinessAreasPage } from './components/pages/BusinessAreasPage';
@@ -39,6 +40,7 @@ function MainLayout() {
           <Hero />
           <BusinessAreasSection />
           <PortfolioPreview />
+          <LocationSection />
         </main>
       );
     }

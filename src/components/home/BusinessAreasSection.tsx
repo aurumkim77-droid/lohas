@@ -45,7 +45,7 @@ export const BusinessAreasSection: React.FC = () => {
                 {/* Image Box */}
                 <div className="relative h-52 overflow-hidden bg-slate-900">
                   <img
-                    src={card.imageUrl}
+                    src={card.imageUrl?.trim() || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80'}
                     alt={card.title}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 brightness-95"
                   />
@@ -103,7 +103,7 @@ export const BusinessAreasSection: React.FC = () => {
           <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-scaleIn">
             <div className="relative h-64 bg-slate-900">
               <img
-                src={selectedCard.imageUrl}
+                src={selectedCard.imageUrl?.trim() || 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80'}
                 alt={selectedCard.title}
                 className="w-full h-full object-cover"
               />

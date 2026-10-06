@@ -104,19 +104,19 @@ export const ImageInputPicker: React.FC<ImageInputPickerProps> = ({
               </button>
             </div>
             <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-48 overflow-y-auto p-1">
-              {siteData.uploadedImages.map((img, idx) => (
+              {siteData.uploadedImages.filter(img => typeof img === 'string' && img.trim().length > 0).map((img, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => {
-                    onChange(img);
+                    onChange(img.trim());
                     setShowLibrary(false);
                   }}
                   className={`group relative h-16 rounded-lg overflow-hidden border-2 transition ${
                     value === img ? 'border-emerald-500 ring-2 ring-emerald-500/30' : 'border-slate-200 hover:border-slate-400'
                   }`}
                 >
-                  <img src={img} alt={`Img ${idx}`} className="w-full h-full object-cover" />
+                  <img src={img.trim()} alt={`Img ${idx}`} className="w-full h-full object-cover" />
                   {value === img && (
                     <div className="absolute inset-0 bg-emerald-600/60 flex items-center justify-center">
                       <Check size={16} className="text-white font-bold" />
@@ -129,9 +129,9 @@ export const ImageInputPicker: React.FC<ImageInputPickerProps> = ({
         )}
 
         {/* Preview Box */}
-        {value && (
+        {value && value.trim().length > 0 && (
           <div className="relative h-32 w-full max-w-md rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shadow-sm">
-            <img src={value} alt="Preview" className="w-full h-full object-cover" />
+            <img src={value.trim()} alt="Preview" className="w-full h-full object-cover" />
             <div className="absolute bottom-2 left-2 bg-slate-900/80 text-white text-[10px] px-2 py-0.5 rounded font-medium">
               미리보기
             </div>
