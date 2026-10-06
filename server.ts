@@ -92,6 +92,13 @@ async function startServer() {
       }
 
       fs.writeFileSync(DATA_FILE, JSON.stringify(newSiteData, null, 2), 'utf-8');
+      if (Array.isArray(newSiteData.portfolioItems) && newSiteData.portfolioItems.length > 0) {
+        try {
+          const defaultPortfolioPath = path.join(__dirname, 'src', 'data', 'defaultPortfolio.ts');
+          const tsContent = `import { PortfolioItem } from "../types/index";\n\nexport const DEFAULT_PORTFOLIO_ITEMS: PortfolioItem[] = ${JSON.stringify(newSiteData.portfolioItems, null, 2)};\n`;
+          fs.writeFileSync(defaultPortfolioPath, tsContent, 'utf-8');
+        } catch (_) {}
+      }
       return res.json({ success: true, message: 'Site data saved successfully' });
     } catch (err) {
       console.error('Failed to save site data:', err);
@@ -108,6 +115,13 @@ async function startServer() {
       const current = getOrInitSiteData();
       current.portfolioItems = portfolioItems;
       fs.writeFileSync(DATA_FILE, JSON.stringify(current, null, 2), 'utf-8');
+      if (portfolioItems.length > 0) {
+        try {
+          const defaultPortfolioPath = path.join(__dirname, 'src', 'data', 'defaultPortfolio.ts');
+          const tsContent = `import { PortfolioItem } from "../types/index";\n\nexport const DEFAULT_PORTFOLIO_ITEMS: PortfolioItem[] = ${JSON.stringify(portfolioItems, null, 2)};\n`;
+          fs.writeFileSync(defaultPortfolioPath, tsContent, 'utf-8');
+        } catch (_) {}
+      }
       return res.json({ success: true, count: portfolioItems.length });
     } catch (err) {
       console.error('Failed to update portfolio items:', err);
