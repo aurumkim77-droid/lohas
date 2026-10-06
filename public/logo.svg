@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" fill="none">
+  <defs>
+    <!-- Dark Navy Rounded Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#081120" />
+      <stop offset="60%" stop-color="#0b172a" />
+      <stop offset="100%" stop-color="#060c18" />
+    </linearGradient>
+
+    <!-- Electric Neon Blue Stroke Gradient -->
+    <linearGradient id="neonBlue" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#67b2fc" />
+      <stop offset="50%" stop-color="#4da0f8" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+
+    <!-- Neon Glow Filter -->
+    <filter id="neonGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur1" />
+      <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur2" />
+        <feMergeNode in="blur1" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Squircle Dark Navy Background -->
+  <rect x="6" y="6" width="188" height="188" rx="44" fill="url(#bgGrad)" stroke="#1e3a8a" stroke-width="1.5" stroke-opacity="0.45" />
+
+  <!-- Soft Ambient Inner Glow -->
+  <ellipse cx="100" cy="105" rx="65" ry="55" fill="#38bdf8" fill-opacity="0.08" />
+
+  <!-- === BUILDING ICON === -->
+  <g filter="url(#neonGlow)">
+    <!-- 1. Base Foundation Line -->
+    <path d="M 38 154 H 162" stroke="url(#neonBlue)" stroke-width="11" stroke-linecap="round" />
+
+    <!-- 2. Left Wing Building -->
+    <path d="M 76 86 H 58 C 50 86, 46 91, 46 98 V 154" stroke="url(#neonBlue)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- 3. Right Wing Building -->
+    <path d="M 124 70 H 142 C 150 70, 154 75, 154 83 V 154" stroke="url(#neonBlue)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- 4. Center Landmark Tower -->
+    <path d="M 76 154 V 58 C 76 48, 86 44, 100 44 C 114 44, 124 48, 124 58 V 154" stroke="url(#neonBlue)" stroke-width="11.5" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- 5. Center Upper Window Slot -->
+    <path d="M 87 74 H 113" stroke="url(#neonBlue)" stroke-width="9.5" stroke-linecap="round" />
+
+    <!-- 6. Center Middle Window Slot -->
+    <path d="M 87 97 H 113" stroke="url(#neonBlue)" stroke-width="9.5" stroke-linecap="round" />
+
+    <!-- 7. Center Arched Entrance Doorway -->
+    <path d="M 88 154 V 135 C 88 127, 112 127, 112 135 V 154" stroke="url(#neonBlue)" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

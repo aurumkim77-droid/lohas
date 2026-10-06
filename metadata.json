@@ -1,0 +1,6 @@
+{
+  "name": "로하스건축사사무소",
+  "description": "현대적이고 전문적인 로하스건축사사무소 홈페이지 및 관리자 시스템",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
