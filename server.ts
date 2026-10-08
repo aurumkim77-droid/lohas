@@ -3,7 +3,6 @@ import { createServer as createViteServer } from 'vite';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { INITIAL_SITE_DATA } from './src/data/initialData';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,13 +32,25 @@ async function startServer() {
     } catch (e) {
       console.error('Error reading data file, resetting to initialData', e);
     }
-    // Seed initial data
+    // Default minimal data if file does not exist
+    const fallbackData = {
+      settings: {
+        siteName: '로하스건축사사무소',
+        address: '서울시 성동구 살곶이길 150 (사근동 189-5)',
+        phone: '02-499-0229',
+        email: 'aurumkim77@gmail.com'
+      },
+      menuItems: [],
+      portfolioItems: [],
+      uploadedImages: [],
+      notices: []
+    };
     try {
-      fs.writeFileSync(DATA_FILE, JSON.stringify(INITIAL_SITE_DATA, null, 2), 'utf-8');
+      fs.writeFileSync(DATA_FILE, JSON.stringify(fallbackData, null, 2), 'utf-8');
     } catch (e) {
       console.error('Error seeding siteData.json', e);
     }
-    return INITIAL_SITE_DATA;
+    return fallbackData;
   };
 
   // Ensure data file is initialized on server start
