@@ -45,6 +45,7 @@ export const AdminPortfolioEdit: React.FC = () => {
     deletePortfolioItem,
     togglePortfolioFeatured,
     addUploadedImage,
+    uploadImageFile,
     setCurrentPage: setSitePage,
     setIsAdminModeActive,
     syncToServer,
@@ -99,8 +100,8 @@ export const AdminPortfolioEdit: React.FC = () => {
       const newUrls: string[] = [];
       for (let i = 0; i < files.length; i++) {
         const compressed = await compressImageFile(files[i]);
-        newUrls.push(compressed);
-        addUploadedImage(compressed);
+        const uploadedUrl = await uploadImageFile(compressed);
+        newUrls.push(uploadedUrl);
       }
       setAdditionalImages((prev) => [...prev, ...newUrls]);
     } catch (err) {
@@ -196,8 +197,7 @@ export const AdminPortfolioEdit: React.FC = () => {
     setFeatured(false);
 
     setSaved(true);
-    // Persist immediately to backend server so portfolio is never reset
-    syncPortfolioToServer().catch(() => {});
+    // updatePortfolioItem / addPortfolioItem already immediately persists changes to /api/portfolio, /api/site-data, and Firestore!
 
     setTimeout(() => {
       setSaved(false);

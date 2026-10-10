@@ -374,9 +374,9 @@ export const SiteProvider: React.FC<{ children: React.ReactNode }> = ({ children
           title: p.title,
           category: p.category,
           description: p.description,
-          imageUrl: (typeof p.imageUrl === 'string' && !p.imageUrl.startsWith('data:')) ? p.imageUrl : '',
+          imageUrl: p.imageUrl || '',
           additionalImages: Array.isArray(p.additionalImages)
-            ? p.additionalImages.filter((img: any) => typeof img === 'string' && !img.startsWith('data:'))
+            ? p.additionalImages.filter((img: any) => typeof img === 'string' && img.length > 0)
             : [],
           location: p.location || '',
           scale: p.scale || '',

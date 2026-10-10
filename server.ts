@@ -12,6 +12,57 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
   const DATA_DIR = path.join(__dirname, 'data');
   const DATA_FILE = path.join(DATA_DIR, 'siteData.json');
+  const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads');
+  const DIST_UPLOADS_DIR = path.join(__dirname, 'dist', 'uploads');
+
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  }
+
+  // Helper to persist base64 image data URLs directly to disk files in both public/uploads and dist/uploads
+  const saveBase64ToDisk = (dataUrl: string): string => {
+    if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
+      return dataUrl;
+    }
+    try {
+      const matches = dataUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+      if (!matches || matches.length < 3) return dataUrl;
+      let ext = matches[1];
+      if (ext === 'jpeg') ext = 'jpg';
+      if (ext === 'svg+xml') ext = 'svg';
+
+      const base64Data = matches[2];
+      const buffer = Buffer.from(base64Data, 'base64');
+      const filename = `img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+      const filePath = path.join(UPLOADS_DIR, filename);
+
+      fs.writeFileSync(filePath, buffer);
+
+      if (fs.existsSync(path.join(__dirname, 'dist'))) {
+        if (!fs.existsSync(DIST_UPLOADS_DIR)) fs.mkdirSync(DIST_UPLOADS_DIR, { recursive: true });
+        fs.writeFileSync(path.join(DIST_UPLOADS_DIR, filename), buffer);
+      }
+
+      return `/uploads/${filename}`;
+    } catch (e) {
+      console.error('Error saving base64 to disk:', e);
+      return dataUrl;
+    }
+  };
+
+  const copyUploadsToDist = () => {
+    if (fs.existsSync(path.join(__dirname, 'dist')) && fs.existsSync(UPLOADS_DIR)) {
+      try {
+        if (!fs.existsSync(DIST_UPLOADS_DIR)) fs.mkdirSync(DIST_UPLOADS_DIR, { recursive: true });
+        const files = fs.readdirSync(UPLOADS_DIR);
+        files.forEach((f) => {
+          const src = path.join(UPLOADS_DIR, f);
+          const dst = path.join(DIST_UPLOADS_DIR, f);
+          if (!fs.existsSync(dst)) fs.copyFileSync(src, dst);
+        });
+      } catch (_) {}
+    }
+  };
 
   app.use(express.json({ limit: '50mb' }));
 
@@ -74,32 +125,27 @@ async function startServer() {
         return res.status(400).json({ error: 'Invalid site data payload' });
       }
 
-      // Sanitize uploadedImages: ensure it is strictly an array of string URLs
-      if (Array.isArray(newSiteData.uploadedImages)) {
-        newSiteData.uploadedImages = newSiteData.uploadedImages.filter(
-          (img: any) => typeof img === 'string' && img.trim().length > 0 && !img.startsWith('data:')
-        );
-      } else {
-        newSiteData.uploadedImages = [];
-      }
-
-      // Sanitize portfolio items if present
+      // Convert any base64 images in portfolioItems directly to permanent disk files
       if (Array.isArray(newSiteData.portfolioItems)) {
         newSiteData.portfolioItems = newSiteData.portfolioItems.map((p: any) => {
           if (!p || typeof p !== 'object') return p;
-          // Don't store oversized base64 strings in siteData.json
-          const cleanImageUrl = typeof p.imageUrl === 'string' && p.imageUrl.startsWith('data:') && p.imageUrl.length > 2000
-            ? ''
-            : p.imageUrl;
+          const cleanImageUrl = saveBase64ToDisk(p.imageUrl);
           const cleanAdditional = Array.isArray(p.additionalImages)
-            ? p.additionalImages.filter((img: any) => typeof img === 'string' && !img.startsWith('data:'))
+            ? p.additionalImages.map((img: any) => saveBase64ToDisk(img))
             : [];
           return {
             ...p,
-            imageUrl: cleanImageUrl,
+            imageUrl: cleanImageUrl || '',
             additionalImages: cleanAdditional
           };
         });
+      }
+
+      // Sanitize uploadedImages
+      if (Array.isArray(newSiteData.uploadedImages)) {
+        newSiteData.uploadedImages = newSiteData.uploadedImages.map((img: any) => saveBase64ToDisk(img));
+      } else {
+        newSiteData.uploadedImages = [];
       }
 
       fs.writeFileSync(DATA_FILE, JSON.stringify(newSiteData, null, 2), 'utf-8');
@@ -110,6 +156,7 @@ async function startServer() {
           fs.writeFileSync(defaultPortfolioPath, tsContent, 'utf-8');
         } catch (_) {}
       }
+      copyUploadsToDist();
       return res.json({ success: true, message: 'Site data saved successfully' });
     } catch (err) {
       console.error('Failed to save site data:', err);
@@ -123,17 +170,33 @@ async function startServer() {
       if (!Array.isArray(portfolioItems)) {
         return res.status(400).json({ error: 'portfolioItems must be an array' });
       }
+
+      // Convert any base64 images directly to permanent disk files
+      const processedItems = portfolioItems.map((p: any) => {
+        if (!p || typeof p !== 'object') return p;
+        const cleanImageUrl = saveBase64ToDisk(p.imageUrl);
+        const cleanAdditional = Array.isArray(p.additionalImages)
+          ? p.additionalImages.map((img: any) => saveBase64ToDisk(img))
+          : [];
+        return {
+          ...p,
+          imageUrl: cleanImageUrl || '',
+          additionalImages: cleanAdditional
+        };
+      });
+
       const current = getOrInitSiteData();
-      current.portfolioItems = portfolioItems;
+      current.portfolioItems = processedItems;
       fs.writeFileSync(DATA_FILE, JSON.stringify(current, null, 2), 'utf-8');
-      if (portfolioItems.length > 0) {
+      if (processedItems.length > 0) {
         try {
           const defaultPortfolioPath = path.join(__dirname, 'src', 'data', 'defaultPortfolio.ts');
-          const tsContent = `import { PortfolioItem } from "../types/index";\n\nexport const DEFAULT_PORTFOLIO_ITEMS: PortfolioItem[] = ${JSON.stringify(portfolioItems, null, 2)};\n`;
+          const tsContent = `import { PortfolioItem } from "../types/index";\n\nexport const DEFAULT_PORTFOLIO_ITEMS: PortfolioItem[] = ${JSON.stringify(processedItems, null, 2)};\n`;
           fs.writeFileSync(defaultPortfolioPath, tsContent, 'utf-8');
         } catch (_) {}
       }
-      return res.json({ success: true, count: portfolioItems.length });
+      copyUploadsToDist();
+      return res.json({ success: true, count: processedItems.length, portfolioItems: processedItems });
     } catch (err) {
       console.error('Failed to update portfolio items:', err);
       return res.status(500).json({ error: 'Failed to update portfolio items' });
@@ -155,11 +218,6 @@ async function startServer() {
       return res.status(500).json({ error: 'Failed to update notices' });
     }
   });
-
-  const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads');
-  if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-  }
 
   // Serve static uploaded files with seamless fallback
   app.use('/uploads', express.static(UPLOADS_DIR));
@@ -189,22 +247,7 @@ async function startServer() {
 
       // If base64 data URL, write to file on disk
       if (image.startsWith('data:image/')) {
-        const matches = image.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
-        if (!matches || matches.length < 3) {
-          return res.status(400).json({ error: 'Invalid base64 image data' });
-        }
-        let ext = matches[1];
-        if (ext === 'jpeg') ext = 'jpg';
-        if (ext === 'svg+xml') ext = 'svg';
-
-        const base64Data = matches[2];
-        const buffer = Buffer.from(base64Data, 'base64');
-        const filename = `img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
-        const filePath = path.join(UPLOADS_DIR, filename);
-
-        fs.writeFileSync(filePath, buffer);
-        const fileUrl = `/uploads/${filename}`;
-
+        const fileUrl = saveBase64ToDisk(image);
         const current = getOrInitSiteData();
         if (!Array.isArray(current.uploadedImages)) {
           current.uploadedImages = [];
@@ -213,7 +256,7 @@ async function startServer() {
           current.uploadedImages = [fileUrl, ...current.uploadedImages];
           fs.writeFileSync(DATA_FILE, JSON.stringify(current, null, 2), 'utf-8');
         }
-
+        copyUploadsToDist();
         return res.json({ success: true, url: fileUrl });
       }
 

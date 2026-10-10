@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build",
+    "build": "vite build && cp -r public/uploads dist/ 2>/dev/null || true",
     "start": "node server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
