@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Upload, Trash2, Copy, Check, Image as ImageIcon, Link as LinkIcon, Loader2, RefreshCw } from 'lucide-react';
 import { useSiteContext } from '../../context/SiteContext';
 import { compressImageFile } from '../../utils/imageUtils';
+import { getStorageConfigurationStatus } from '../../services/storageService';
 
 export const AdminImageEdit: React.FC = () => {
   const { siteData, addUploadedImage, deleteUploadedImage, uploadImageFile, syncImagesToServer } = useSiteContext();
@@ -49,12 +50,14 @@ export const AdminImageEdit: React.FC = () => {
 
     setIsProcessing(true);
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const compressedUrl = await compressImageFile(file);
-        await uploadImageFile(compressedUrl);
-      }
-      setSyncStatus(`${files.length}개의 이미지가 서버에 안전하게 업로드 및 저장되었습니다!`);
+      const fileList = Array.from(files) as File[];
+      await Promise.all(
+        fileList.map(async (file) => {
+          const compressedUrl = await compressImageFile(file);
+          return await uploadImageFile(compressedUrl);
+        })
+      );
+      setSyncStatus(`${files.length}개의 이미지가 초고속으로 업로드 및 저장되었습니다!`);
       setTimeout(() => setSyncStatus(null), 3500);
     } catch (err) {
       console.error('Error compressing or uploading image:', err);
@@ -108,6 +111,31 @@ export const AdminImageEdit: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Cloud Storage Status Banner */}
+        {(() => {
+          const status = getStorageConfigurationStatus();
+          return (
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="font-bold text-slate-700">현재 스토리지 연동 엔진:</span>
+                <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-extrabold text-[#001528] shadow-xs">
+                  {status.activeProvider}
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-500">
+                {status.hasSupabase ? (
+                  <span className="text-emerald-700 font-bold">✓ Supabase Storage 버킷이 연결되어 모든 방문자에게 고속 CDN Public URL로 제공됩니다.</span>
+                ) : status.hasFirebase ? (
+                  <span className="text-emerald-700 font-bold">✓ Firebase Storage 버킷이 연결되어 모든 방문자에게 영구 Public URL로 제공됩니다.</span>
+                ) : (
+                  <span>스토리지 버킷 연동 대기 중 (백엔드 서버 영구 보관으로 자동 안전 서빙 중)</span>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Upload options */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -1,24 +1,60 @@
 /**
- * Utility function to compress uploaded image files on the client side
- * using HTML5 Canvas to prevent high-resolution images from causing memory bloat,
- * thread-freezing, or localStorage quota exceptions.
+ * High-performance, multi-threaded client-side image compression.
+ * Uses native createImageBitmap when available for near-instant decoding
+ * without freezing the browser UI thread.
  */
-export const compressImageFile = (
+export const compressImageFile = async (
   file: File,
-  maxWidth = 1000,
-  maxHeight = 1000,
-  quality = 0.75
+  maxWidth = 1200,
+  maxHeight = 1200,
+  quality = 0.8
 ): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    // If it's already an extremely small file (under 40KB), read directly
-    if (file.size < 40 * 1024) {
+  // If already small (under 80KB), return directly to save CPU
+  if (file.size < 80 * 1024) {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => resolve(e.target?.result as string);
-      reader.onerror = (err) => reject(err);
+      reader.onerror = reject;
       reader.readAsDataURL(file);
-      return;
-    }
+    });
+  }
 
+  // 1. Fast path: createImageBitmap (async background decode)
+  if (typeof window !== 'undefined' && 'createImageBitmap' in window) {
+    try {
+      const bitmap = await createImageBitmap(file);
+      let width = bitmap.width;
+      let height = bitmap.height;
+
+      if (width > maxWidth || height > maxHeight) {
+        if (width > height) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        } else {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d', { alpha: false });
+      if (ctx) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'medium';
+        ctx.drawImage(bitmap, 0, 0, width, height);
+        bitmap.close();
+        return canvas.toDataURL('image/jpeg', quality);
+      }
+      bitmap.close();
+    } catch (_bitmapErr) {
+      // Fall through to traditional canvas path on error
+    }
+  }
+
+  // 2. Traditional Canvas fallback
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
@@ -39,17 +75,17 @@ export const compressImageFile = (
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
-
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { alpha: false });
         if (!ctx) {
           resolve(event.target?.result as string);
           return;
         }
 
-        // Draw and compress image
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'medium';
         ctx.drawImage(img, 0, 0, width, height);
-        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
-        resolve(compressedDataUrl);
+        const compressed = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressed);
       };
 
       img.onerror = () => {
@@ -59,7 +95,7 @@ export const compressImageFile = (
       img.src = event.target?.result as string;
     };
 
-    reader.onerror = (err) => reject(err);
+    reader.onerror = reject;
     reader.readAsDataURL(file);
   });
 };

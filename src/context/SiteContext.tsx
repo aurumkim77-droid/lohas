@@ -22,6 +22,7 @@ import {
   setDoc,
   User
 } from '../firebase';
+import { uploadPortfolioImage } from '../services/storageService';
 
 const LOCAL_STORAGE_KEY = 'lohas_architects_site_data_v21';
 const PASSWORD_STORAGE_KEY = 'lohas_admin_password_v1';
@@ -49,7 +50,7 @@ const cleanupOldLocalStorageKeys = (currentKey: string) => {
   } catch (_) {}
 };
 
-// Safe saving to localStorage with automatic cleanup, lightweight fallback, and zero-crash quota handling
+// Safe saving to localStorage with automatic cleanup and reliable persistence
 const saveSafeToLocalStorage = (key: string, data: SiteData) => {
   if (typeof localStorage === 'undefined') return;
   try {
@@ -58,29 +59,9 @@ const saveSafeToLocalStorage = (key: string, data: SiteData) => {
   } catch (_quotaErr) {
     try {
       cleanupOldLocalStorageKeys(key);
-      // Strip oversized base64 image strings from localStorage to stay well within browser quota
-      // Full resolution data is always persisted and served by the Express backend API (/api/site-data)
-      const sanitizeImg = (val?: string) => {
-        if (val && val.startsWith('data:') && val.length > 5000) {
-          return val.slice(0, 80) + '...[cached_on_server]';
-        }
-        return val || '';
-      };
-
-      const lightweightData: SiteData = {
-        ...data,
-        portfolioItems: data.portfolioItems.map(p => ({
-          ...p,
-          imageUrl: sanitizeImg(p.imageUrl),
-          additionalImages: (p.additionalImages || []).map(sanitizeImg)
-        })),
-        uploadedImages: (data.uploadedImages || []).map(sanitizeImg)
-      };
-
-      localStorage.setItem(key, JSON.stringify(lightweightData));
+      localStorage.setItem(key, JSON.stringify(data));
     } catch (_fallbackErr) {
-      // Gracefully handle storage quota limit without throwing unhandled console error
-      console.warn('LocalStorage quota limit reached; changes are safely persisted to the backend server.');
+      console.warn('LocalStorage save notice:', _fallbackErr);
     }
   }
 };
@@ -261,9 +242,9 @@ export const SiteProvider: React.FC<{ children: React.ReactNode }> = ({ children
               area: p.area !== undefined ? p.area : (defaultItem?.area || ''),
               scope: p.scope !== undefined ? p.scope : (defaultItem?.scope || ''),
               location: p.location !== undefined ? p.location : (defaultItem?.location || ''),
-              imageUrl: (p.imageUrl && !p.imageUrl.includes('[cached_on_server]')) ? p.imageUrl : (defaultItem?.imageUrl || p.imageUrl || ''),
+              imageUrl: p.imageUrl || defaultItem?.imageUrl || '',
               additionalImages: Array.isArray(p.additionalImages) && p.additionalImages.length > 0
-                ? p.additionalImages.map(img => img.includes('[cached_on_server]') ? '' : img).filter(Boolean)
+                ? p.additionalImages
                 : (defaultItem?.additionalImages || [])
             };
           });
@@ -454,40 +435,63 @@ export const SiteProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearTimeout(timer);
   }, [siteData]);
 
-  // Sync state from server and Firestore on mount
+  // Sync state from server and Firestore on mount (strictly prioritizing localStorage)
   useEffect(() => {
     let isMounted = true;
+
+    // Check if localStorage already holds user-modified portfolio data
+    const hasLocalSavedPortfolios = (() => {
+      try {
+        if (typeof localStorage === 'undefined') return false;
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (!saved) return false;
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed?.portfolioItems) && parsed.portfolioItems.length > 0;
+      } catch {
+        return false;
+      }
+    })();
+
     fetch('/api/site-data')
       .then(res => res.ok ? res.json() : null)
       .then(serverData => {
         if (!isMounted || !serverData || !Array.isArray(serverData.portfolioItems)) return;
         setSiteData(prev => {
+          // If localStorage already holds portfolio data, prioritize local items!
+          const chosenPortfolios = hasLocalSavedPortfolios && prev.portfolioItems.length > 0
+            ? prev.portfolioItems
+            : serverData.portfolioItems;
+
           const updated = {
-            ...prev,
             ...serverData,
-            portfolioItems: serverData.portfolioItems
+            ...prev,
+            portfolioItems: chosenPortfolios
           };
           saveSafeToLocalStorage(LOCAL_STORAGE_KEY, updated);
           return updated;
         });
-        // Keep modification flag false so initial load does not re-push to Firestore
         hasUserModifiedRef.current = false;
       })
       .catch(err => {
         console.warn('Could not fetch server site-data, checking Firestore', err);
       });
 
-    // Firestore fallback
+    // Firestore fallback (never overwrites localStorage priority)
     try {
       const siteDocRef = doc(db, 'siteData', 'main');
       getDoc(siteDocRef).then((snap) => {
         if (!isMounted || !snap.exists()) return;
         const fsData = snap.data() as Partial<SiteData>;
         if (fsData && Array.isArray(fsData.portfolioItems) && fsData.portfolioItems.length > 0) {
-          setSiteData(prev => ({
-            ...prev,
-            ...fsData
-          }));
+          setSiteData(prev => {
+            if (hasLocalSavedPortfolios && prev.portfolioItems.length > 0) {
+              return prev;
+            }
+            return {
+              ...prev,
+              ...fsData
+            };
+          });
           hasUserModifiedRef.current = false;
         }
       }).catch(() => {});
@@ -854,12 +858,12 @@ export const SiteProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...prev,
         uploadedImages: updated
       };
+      // Fast lightweight image list persistence
       fetch('/api/images', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ uploadedImages: updated })
       }).catch(() => {});
-      syncToServer(nextData).catch(() => {});
       saveSafeToLocalStorage(LOCAL_STORAGE_KEY, nextData);
       return nextData;
     });
@@ -885,20 +889,14 @@ export const SiteProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const uploadImageFile = async (fileOrBase64: string): Promise<string> => {
     try {
-      const res = await fetch('/api/upload-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: fileOrBase64 })
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.url) {
-          addUploadedImage(json.url);
-          return json.url;
-        }
+      // 1. Unified Cloud Storage Upload (Supabase / Firebase Storage / Server Backend)
+      const result = await uploadPortfolioImage(fileOrBase64);
+      if (result && result.url) {
+        addUploadedImage(result.url);
+        return result.url;
       }
     } catch (e) {
-      console.warn('Failed to upload image file to backend:', e);
+      console.warn('Failed to upload image file via storageService:', e);
     }
     // Only add if it is an actual URL, never push raw oversized base64 to state
     if (!fileOrBase64.startsWith('data:')) {

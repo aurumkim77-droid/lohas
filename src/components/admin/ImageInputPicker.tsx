@@ -20,23 +20,43 @@ export const ImageInputPicker: React.FC<ImageInputPickerProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    const file = files[0];
     setIsUploading(true);
-    try {
-      const compressedDataUrl = await compressImageFile(files[0]);
-      const serverUrl = await uploadImageFile(compressedDataUrl);
-      onChange(serverUrl);
-    } catch (err) {
-      console.error('Failed to process image:', err);
-      alert('이미지 처리 중 오류가 발생했습니다.');
-    } finally {
+
+    // 1. Instant FileReader conversion to Base64 (Data URL) for immediate preview
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        // 즉시 미리보기 및 상태 반영
+        onChange(dataUrl);
+
+        // 2. 백그라운드 고속 서버 영구 스토리지 업로드
+        try {
+          const compressed = await compressImageFile(file);
+          const serverUrl = await uploadImageFile(compressed);
+          if (serverUrl && serverUrl !== compressed) {
+            onChange(serverUrl);
+          }
+        } catch (err) {
+          console.warn('Background server storage sync:', err);
+        } finally {
+          setIsUploading(false);
+        }
+      }
+    };
+    reader.onerror = (err) => {
+      console.error('FileReader error:', err);
       setIsUploading(false);
-      // reset file input
-      e.target.value = '';
-    }
+    };
+    reader.readAsDataURL(file);
+
+    // reset file input
+    e.target.value = '';
   };
 
   return (

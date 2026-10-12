@@ -27,6 +27,7 @@ import {
   Building,
   User,
   ExternalLink,
+  Link as LinkIcon,
   X
 } from 'lucide-react';
 import { useSiteContext } from '../../context/SiteContext';
@@ -97,13 +98,13 @@ export const AdminPortfolioEdit: React.FC = () => {
 
     setIsUploadingAdd(true);
     try {
-      const newUrls: string[] = [];
-      for (let i = 0; i < files.length; i++) {
-        const compressed = await compressImageFile(files[i]);
-        const uploadedUrl = await uploadImageFile(compressed);
-        newUrls.push(uploadedUrl);
-      }
-      setAdditionalImages((prev) => [...prev, ...newUrls]);
+      const fileList = Array.from(files) as File[];
+      const uploadPromises = fileList.map(async (file) => {
+        const compressed = await compressImageFile(file);
+        return await uploadImageFile(compressed);
+      });
+      const newUrls = await Promise.all(uploadPromises);
+      setAdditionalImages((prev) => [...prev, ...newUrls.filter(Boolean)]);
     } catch (err) {
       console.error('Error uploading additional images:', err);
       alert('이미지 업로드 중 오류가 발생했습니다.');
@@ -275,6 +276,47 @@ export const AdminPortfolioEdit: React.FC = () => {
     }
   };
 
+  const handleInlineImageFileChange = (item: PortfolioItem, e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+
+    // 1. Instant FileReader conversion to Base64 (Data URL) for immediate display and localStorage save
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        updatePortfolioItem(item.id, { imageUrl: dataUrl });
+        setRecentlyUpdatedId(item.id);
+        setSaveMessage(`'${item.title}' 대표 이미지가 즉시 변경 및 저장되었습니다!`);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 4500);
+
+        // 2. Background server file upload for backup
+        try {
+          const compressed = await compressImageFile(file);
+          const serverUrl = await uploadImageFile(compressed);
+          if (serverUrl && serverUrl !== compressed) {
+            updatePortfolioItem(item.id, { imageUrl: serverUrl });
+          }
+        } catch (_) {}
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleInlineImageUrlChange = (item: PortfolioItem) => {
+    const newUrl = window.prompt(`'${item.title}' 프로젝트의 새 이미지 URL을 입력하세요:`, item.imageUrl);
+    if (newUrl !== null && newUrl.trim() !== '') {
+      updatePortfolioItem(item.id, { imageUrl: newUrl.trim() });
+      setRecentlyUpdatedId(item.id);
+      setSaveMessage(`'${item.title}' 대표 이미지가 새 URL로 저장되었습니다!`);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 4500);
+    }
+  };
+
   const handleImmediateServerSync = async () => {
     setIsSyncingServer(true);
     try {
@@ -383,7 +425,7 @@ export const AdminPortfolioEdit: React.FC = () => {
     <div className="space-y-8" ref={formTopRef}>
       {/* Toast Notification Banner */}
       {saved && (
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs sm:text-sm font-bold flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg animate-fadeIn">
+        <div className="sticky top-4 z-50 p-4 rounded-2xl bg-emerald-50/95 border-2 border-emerald-400 text-emerald-900 text-xs sm:text-sm font-bold flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xl backdrop-blur-md animate-fadeIn">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
               <Check size={18} />
@@ -1140,8 +1182,8 @@ export const AdminPortfolioEdit: React.FC = () => {
                       {globalIndex}
                     </span>
 
-                    {/* Thumbnail Image */}
-                    <div className="w-16 h-14 sm:w-20 sm:h-16 rounded-xl overflow-hidden bg-slate-900 shrink-0 border border-slate-200 relative group">
+                    {/* Thumbnail Image with Quick Image Change Button */}
+                    <div className="w-20 h-16 sm:w-24 sm:h-20 rounded-xl overflow-hidden bg-slate-900 shrink-0 border border-slate-200 relative group shadow-xs">
                       <img
                         src={p.imageUrl?.trim() || getCategoryFallbackImage(p.category)}
                         alt={p.title}
@@ -1155,10 +1197,33 @@ export const AdminPortfolioEdit: React.FC = () => {
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                       />
                       {p.additionalImages && p.additionalImages.length > 0 && (
-                        <span className="absolute bottom-1 right-1 bg-slate-950/80 text-white text-[9px] font-bold px-1 rounded">
+                        <span className="absolute bottom-1 right-1 bg-slate-950/80 text-white text-[9px] font-bold px-1 rounded z-10">
                           +{p.additionalImages.length}
                         </span>
                       )}
+
+                      {/* Quick Change Overlay */}
+                      <div className="absolute inset-0 bg-slate-950/75 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 p-1 z-20">
+                        <label className="cursor-pointer px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-extrabold flex items-center gap-1 shadow transition">
+                          <Upload size={10} />
+                          <span>사진변경</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleInlineImageFileChange(p, e)}
+                            className="hidden"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleInlineImageUrlChange(p)}
+                          className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[9px] font-semibold flex items-center gap-1 transition"
+                          title="이미지 URL 직접 입력"
+                        >
+                          <LinkIcon size={9} />
+                          <span>URL</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* Project Information */}
