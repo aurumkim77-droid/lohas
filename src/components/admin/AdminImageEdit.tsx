@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, Trash2, Copy, Check, Image as ImageIcon, Link as LinkIcon, Loader2, RefreshCw } from 'lucide-react';
+import { Upload, Trash2, Copy, Check, Image as ImageIcon, Link as LinkIcon, Loader2, RefreshCw, GitBranch, ExternalLink, ShieldCheck } from 'lucide-react';
 import { useSiteContext } from '../../context/SiteContext';
 import { compressImageFile } from '../../utils/imageUtils';
 import { getStorageConfigurationStatus } from '../../services/storageService';
@@ -11,6 +11,49 @@ export const AdminImageEdit: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
+
+  // GitHub Sync State
+  const [githubRepo, setGithubRepo] = useState(() => {
+    return localStorage.getItem('lohas_github_repo') || 'aurumkim/lohas-architects';
+  });
+  const [githubToken, setGithubToken] = useState(() => {
+    return localStorage.getItem('lohas_github_token') || '';
+  });
+  const [isGithubSyncing, setIsGithubSyncing] = useState(false);
+  const [githubResult, setGithubResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleGithubSync = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!githubRepo.trim()) {
+      alert('GitHub 저장소 URL 또는 리포지토리명을 입력해주세요.');
+      return;
+    }
+    setIsGithubSyncing(true);
+    setGithubResult(null);
+    try {
+      localStorage.setItem('lohas_github_repo', githubRepo.trim());
+      if (githubToken) localStorage.setItem('lohas_github_token', githubToken.trim());
+
+      const res = await fetch('/api/github-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repoUrl: githubRepo.trim(),
+          token: githubToken.trim() || undefined
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setGithubResult({ success: true, message: data.message });
+      } else {
+        setGithubResult({ success: false, message: data.error || 'GitHub 동기화에 실패했습니다.' });
+      }
+    } catch (err: any) {
+      setGithubResult({ success: false, message: err?.message || '네트워크 요청 중 오류가 발생했습니다.' });
+    } finally {
+      setIsGithubSyncing(false);
+    }
+  };
 
   const handleManualSync = async () => {
     setIsSyncing(true);
@@ -136,6 +179,104 @@ export const AdminImageEdit: React.FC = () => {
             </div>
           );
         })()}
+
+        {/* GitHub Repository Sync Card */}
+        <div className="p-6 bg-gradient-to-br from-slate-900 to-[#001528] text-white rounded-3xl border border-slate-700 shadow-md space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-[#f5ea1d] text-[#001528] flex items-center justify-center font-black">
+                <GitBranch size={16} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                  <span>GitHub 저장소 이미지 및 데이터 영구 백업</span>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    Git Push
+                  </span>
+                </h3>
+                <p className="text-[11px] text-slate-300">
+                  관리자가 등록·수정한 44개 포트폴리오의 실사 이미지(현재 총 62개 파일) 및 데이터를 GitHub 리포지토리로 직접 푸시합니다.
+                </p>
+              </div>
+            </div>
+            {githubResult && (
+              <div className={`px-3 py-1.5 rounded-xl text-xs font-bold ${
+                githubResult.success
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+              }`}>
+                {githubResult.message}
+              </div>
+            )}
+          </div>
+
+          <form onSubmit={handleGithubSync} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+            <div className="md:col-span-5 space-y-1">
+              <label className="block text-[11px] font-bold text-slate-300">
+                GitHub 리포지토리 주소
+              </label>
+              <input
+                type="text"
+                placeholder="예: aurumkim/lohas-architects 또는 https://github.com/..."
+                value={githubRepo}
+                onChange={(e) => setGithubRepo(e.target.value)}
+                className="w-full rounded-xl bg-slate-800 border border-slate-700 p-2.5 text-xs text-white placeholder-slate-500 outline-none focus:border-[#f5ea1d]"
+                required
+              />
+            </div>
+
+            <div className="md:col-span-4 space-y-1">
+              <label className="block text-[11px] font-bold text-slate-300 flex items-center gap-1">
+                <span>Personal Access Token (PAT)</span>
+                <span className="text-[10px] text-slate-400">(repo 권한 필요)</span>
+              </label>
+              <input
+                type="password"
+                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                value={githubToken}
+                onChange={(e) => setGithubToken(e.target.value)}
+                className="w-full rounded-xl bg-slate-800 border border-slate-700 p-2.5 text-xs text-white placeholder-slate-500 outline-none focus:border-[#f5ea1d]"
+              />
+            </div>
+
+            <div className="md:col-span-3">
+              <button
+                type="submit"
+                disabled={isGithubSyncing}
+                className="w-full px-4 py-2.5 rounded-xl bg-[#f5ea1d] hover:bg-yellow-400 disabled:opacity-50 text-[#001528] font-black text-xs transition flex items-center justify-center gap-1.5 shadow"
+              >
+                {isGithubSyncing ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>GitHub 푸시 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <GitBranch size={14} />
+                    <span>GitHub로 이미지 저장/푸시</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[10px] text-slate-400 pt-1 border-t border-slate-800/80">
+            <div>
+              💡 토큰 발급: GitHub &gt; Settings &gt; Developer settings &gt; Personal access tokens &gt; Tokens (classic) 에서 <strong className="text-slate-200">repo</strong> 권한 체크 후 생성
+            </div>
+            {githubRepo && (
+              <a
+                href={githubRepo.startsWith('http') ? githubRepo : `https://github.com/${githubRepo}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-[#f5ea1d] hover:underline font-bold self-start sm:self-auto"
+              >
+                <span>GitHub 저장소 바로가기</span>
+                <ExternalLink size={11} />
+              </a>
+            )}
+          </div>
+        </div>
 
         {/* Upload options */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

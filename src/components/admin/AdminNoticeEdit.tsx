@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit2, Pin, FileText, Check, Save, Upload, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Edit2, Pin, FileText, Check, Save, Upload, Loader2, ExternalLink, X } from 'lucide-react';
 import { useSiteContext } from '../../context/SiteContext';
 import { NoticeItem, NoticeAttachment } from '../../types';
 
 export const AdminNoticeEdit: React.FC = () => {
-  const { siteData, addNotice, updateNotice, deleteNotice, syncNoticesToServer } = useSiteContext();
+  const { siteData, addNotice, updateNotice, deleteNotice, syncNoticesToServer, setCurrentPage, setIsAdminModeActive } = useSiteContext();
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -16,6 +16,7 @@ export const AdminNoticeEdit: React.FC = () => {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
@@ -25,7 +26,7 @@ export const AdminNoticeEdit: React.FC = () => {
     try {
       const success = await syncNoticesToServer();
       if (success) {
-        setSyncStatus('서버에 공지사항이 성공적으로 저장되었습니다!');
+        setSyncStatus('서버 및 클라우드에 공지사항이 성공적으로 저장되었습니다!');
       } else {
         setSyncStatus('서버 저장 중 오류가 발생했습니다.');
       }
@@ -33,7 +34,7 @@ export const AdminNoticeEdit: React.FC = () => {
       setSyncStatus('서버 저장 중 오류가 발생했습니다.');
     } finally {
       setIsSyncing(false);
-      setTimeout(() => setSyncStatus(null), 3000);
+      setTimeout(() => setSyncStatus(null), 3500);
     }
   };
 
@@ -58,6 +59,7 @@ export const AdminNoticeEdit: React.FC = () => {
       return;
     }
 
+    const currentTitle = title;
     if (editingId) {
       updateNotice(editingId, {
         title,
@@ -66,6 +68,7 @@ export const AdminNoticeEdit: React.FC = () => {
         isPinned,
         attachments
       });
+      setSaveMessage(`'${currentTitle}' 공지사항 수정 내용이 성공적으로 업데이트 및 반영되었습니다!`);
       setEditingId(null);
     } else {
       addNotice({
@@ -75,9 +78,10 @@ export const AdminNoticeEdit: React.FC = () => {
         isPinned,
         attachments
       });
+      setSaveMessage(`'${currentTitle}' 새 공지사항이 성공적으로 등록 및 반영되었습니다!`);
     }
 
-    // Reset
+    // Reset Form
     setTitle('');
     setContent('');
     setAuthor('관리자');
@@ -85,10 +89,11 @@ export const AdminNoticeEdit: React.FC = () => {
     setAttachments([]);
 
     setSaved(true);
+    syncNoticesToServer().catch(() => {});
     setTimeout(() => {
-      syncNoticesToServer().catch(() => {});
       setSaved(false);
-    }, 2000);
+      setSaveMessage('');
+    }, 4500);
   };
 
   const handleEditClick = (n: NoticeItem) => {
@@ -102,6 +107,53 @@ export const AdminNoticeEdit: React.FC = () => {
 
   return (
     <div className="space-y-10">
+      {/* Toast Notification Banner */}
+      {saved && (
+        <div className="sticky top-4 z-50 p-4 rounded-2xl bg-emerald-50/95 border-2 border-emerald-400 text-emerald-900 text-xs sm:text-sm font-bold flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xl backdrop-blur-md animate-fadeIn">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+              <Check size={18} />
+            </div>
+            <div>
+              <p className="text-emerald-950 font-black text-sm">{saveMessage || '공지사항이 성공적으로 저장되었습니다!'}</p>
+              <p className="text-[11px] text-emerald-700 font-medium">관리자 수정사항이 서버 및 사이트에 즉시 반영되었습니다.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-center flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                setIsAdminModeActive(false);
+                setCurrentPage('/notices');
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition flex items-center gap-1 shadow-sm"
+            >
+              <span>공지사항 페이지 확인</span>
+              <ExternalLink size={12} />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsAdminModeActive(false);
+                setCurrentPage('/');
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-[#001528] hover:bg-slate-900 text-[#f5ea1d] text-xs font-bold transition flex items-center gap-1 shadow-sm"
+            >
+              <span>홈페이지 메인 확인</span>
+              <ExternalLink size={12} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setSaved(false)}
+              className="text-emerald-700 hover:text-emerald-950 p-1.5 rounded-lg hover:bg-emerald-100 transition"
+              title="닫기"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Form Section */}
       <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">

@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
+import { execSync } from 'child_process';
 import { createServer as createViteServer } from 'vite';
 import fs from 'fs';
 import path from 'path';
@@ -291,6 +292,92 @@ async function startServer() {
     } catch (err) {
       console.error('Failed to update uploadedImages:', err);
       return res.status(500).json({ error: 'Failed to update uploaded images' });
+    }
+  });
+
+  // GitHub Repository Sync API
+  app.get('/api/github-status', (_req, res) => {
+    try {
+      let remoteUrl = '';
+      try {
+        remoteUrl = execSync('git remote get-url origin', { cwd: __dirname, encoding: 'utf-8' }).trim();
+      } catch (_) {}
+      let lastCommit = '';
+      try {
+        lastCommit = execSync('git log -1 --pretty=format:"%h - %s (%cr)"', { cwd: __dirname, encoding: 'utf-8' }).trim();
+      } catch (_) {}
+      const totalUploads = fs.existsSync(UPLOADS_DIR) ? fs.readdirSync(UPLOADS_DIR).length : 0;
+      return res.json({
+        hasOrigin: Boolean(remoteUrl),
+        remoteUrl: remoteUrl.replace(/https:\/\/[^@]+@github\.com/g, 'https://github.com'),
+        lastCommit,
+        totalUploads
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/github-sync', (req, res) => {
+    try {
+      let { repoUrl, token, branch = 'main', commitMessage } = req.body;
+
+      repoUrl = repoUrl || process.env.GITHUB_REPO_URL || process.env.GITHUB_REPO;
+      token = token || process.env.GITHUB_TOKEN;
+
+      if (!repoUrl) {
+        return res.status(400).json({
+          error: 'GitHub 저장소 URL 또는 리포지토리명(예: aurumkim/lohas-architects 또는 https://github.com/...)을 입력해주세요.'
+        });
+      }
+
+      let authUrl = repoUrl.trim();
+      if (!authUrl.endsWith('.git')) authUrl += '.git';
+      if (!authUrl.startsWith('http://') && !authUrl.startsWith('https://')) {
+        authUrl = `https://github.com/${authUrl}`;
+      }
+
+      if (token && token.trim()) {
+        const cleanRepo = authUrl.replace(/^https?:\/\/[^@]*@github\.com\//, '').replace(/^https?:\/\/github\.com\//, '');
+        authUrl = `https://${encodeURIComponent(token.trim())}@github.com/${cleanRepo}`;
+      }
+
+      copyUploadsToDist();
+
+      const uploadCount = fs.existsSync(UPLOADS_DIR) ? fs.readdirSync(UPLOADS_DIR).length : 0;
+      const msg = commitMessage || `feat(portfolio): sync ${uploadCount} images and siteData to GitHub (${new Date().toISOString()})`;
+
+      const commands = [
+        'git init',
+        'git config user.name "aurumkim"',
+        'git config user.email "aurumkim77@gmail.com"',
+        'git add -A',
+        `git commit -m "${msg.replace(/"/g, '\\"')}" || true`,
+        'git remote remove origin 2>/dev/null || true',
+        `git remote add origin "${authUrl}"`,
+        `git branch -M ${branch}`,
+        `git push -u origin ${branch} --force`
+      ];
+
+      const fullCommand = commands.join(' && ');
+      const output = execSync(fullCommand, { cwd: __dirname, encoding: 'utf-8', timeout: 60000 });
+
+      try {
+        const publicRepoUrl = repoUrl.replace(/^https?:\/\/[^@]*@github\.com\//, 'https://github.com/');
+        execSync(`git remote set-url origin "${publicRepoUrl}"`, { cwd: __dirname });
+      } catch (_) {}
+
+      return res.json({
+        success: true,
+        message: `GitHub에 총 ${uploadCount}개의 최신 이미지 및 포트폴리오 데이터가 성공적으로 저장되었습니다!`,
+        output: output.slice(-400)
+      });
+    } catch (err: any) {
+      console.error('GitHub sync error:', err);
+      const cleanErr = (err.message || String(err)).replace(/https:\/\/[^@]+@github\.com/g, 'https://***@github.com');
+      return res.status(500).json({
+        error: cleanErr || 'GitHub 동기화 중 오류가 발생했습니다. 토큰 권한(repo scope)이나 저장소 주소를 확인해주세요.'
+      });
     }
   });
 

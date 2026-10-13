@@ -463,8 +463,9 @@ export const SiteProvider: React.FC<{ children: React.ReactNode }> = ({ children
             : serverData.portfolioItems;
 
           const updated = {
-            ...serverData,
             ...prev,
+            ...serverData,
+            notices: serverData.notices || prev.notices,
             portfolioItems: chosenPortfolios
           };
           saveSafeToLocalStorage(LOCAL_STORAGE_KEY, updated);
@@ -476,21 +477,25 @@ export const SiteProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('Could not fetch server site-data, checking Firestore', err);
       });
 
-    // Firestore fallback (never overwrites localStorage priority)
+    // Firestore fallback (synchronizes notices and settings while preserving local portfolios)
     try {
       const siteDocRef = doc(db, 'siteData', 'main');
       getDoc(siteDocRef).then((snap) => {
         if (!isMounted || !snap.exists()) return;
         const fsData = snap.data() as Partial<SiteData>;
-        if (fsData && Array.isArray(fsData.portfolioItems) && fsData.portfolioItems.length > 0) {
+        if (fsData) {
           setSiteData(prev => {
-            if (hasLocalSavedPortfolios && prev.portfolioItems.length > 0) {
-              return prev;
-            }
-            return {
+            const updated = {
               ...prev,
-              ...fsData
+              ...(fsData.notices ? { notices: fsData.notices } : {}),
+              ...(fsData.settings ? { settings: { ...prev.settings, ...fsData.settings } } : {}),
+              ...(fsData.companyInfo ? { companyInfo: { ...prev.companyInfo, ...fsData.companyInfo } } : {}),
+              portfolioItems: hasLocalSavedPortfolios && prev.portfolioItems.length > 0
+                ? prev.portfolioItems
+                : (fsData.portfolioItems || prev.portfolioItems)
             };
+            saveSafeToLocalStorage(LOCAL_STORAGE_KEY, updated);
+            return updated;
           });
           hasUserModifiedRef.current = false;
         }
@@ -767,6 +772,7 @@ export const SiteProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notices: updated.notices })
       }).catch(() => {});
+      saveSafeToLocalStorage(LOCAL_STORAGE_KEY, updated);
       return updated;
     });
   };
@@ -783,6 +789,7 @@ export const SiteProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notices: updated.notices })
       }).catch(() => {});
+      saveSafeToLocalStorage(LOCAL_STORAGE_KEY, updated);
       return updated;
     });
   };
@@ -799,6 +806,7 @@ export const SiteProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notices: updated.notices })
       }).catch(() => {});
+      saveSafeToLocalStorage(LOCAL_STORAGE_KEY, updated);
       return updated;
     });
   };
